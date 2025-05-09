@@ -1,0 +1,181 @@
+{% extends "student_app/base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- Step 1: Course Prediction -->
+    <div class="card shadow-lg rounded p-4" id="predictionStep">
+        <h2 class="mb-4 text-primary">Step 1: Course Prediction</h2>
+        
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label class="form-label">Age</label>
+                    <input type="number" id="age" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label class="form-label">Gender</label>
+                    <select id="gender" class="form-control" required>
+                        <option value="1">Male</option>
+                        <option value="2">Female</option>
+                        <option value="3">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-12">
+                <div class="form-group">
+                    <label class="form-label">Interest</label>
+                    <input type="text" id="interest" class="form-control" required placeholder="Enter your interests">
+                </div>
+            </div>
+        </div>
+
+        <div id="prediction-result" class="alert alert-info mt-3" style="display: none;">
+            <h4>Recommended Course</h4>
+            <p id="predicted-course"></p>
+            <p id="confidence-level"></p>
+        </div>
+
+        <div class="mt-4 d-flex justify-content-between">
+            <button type="button" class="btn btn-primary" onclick="getPrediction()">Get Course Prediction</button>
+            <button type="button" class="btn btn-success" onclick="proceedToRegistration()" style="display: none;" id="proceedButton">Continue to Registration</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Registration Form -->
+    <div class="card shadow-lg rounded p-4" id="registrationStep" style="display: none;">
+        <h2 class="mb-4 text-primary">Step 2: Complete Registration</h2>
+
+        {% if form_errors %}
+        <div class="alert alert-danger">
+            <ul>
+                {% for field, errors in form_errors.items %}
+                    {% for error in errors %}
+                        <li>{{ field }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <form method="post" id="registrationForm">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label">First Name</label>
+                        <input type="text" name="first_name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" name="last_name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <textarea name="address" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label class="form-label">Interest</label>
+                        <input type="text" id="interest" class="form-control" required placeholder="Enter your interests">
+                    </div>
+                </div>
+                
+                <!-- Hidden fields for prediction data -->
+                <input type="hidden" name="age" id="finalAge">
+                <input type="hidden" name="gender" id="finalGender">
+                <input type="hidden" name="interest" id="finalInterest">
+                <input type="hidden" name="course" id="finalCourse">
+            </div>
+
+            <div class="mt-4 d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" onclick="backToPrediction()">Back</button>
+                <button type="submit" class="btn btn-success">Complete Registration</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+async function getPrediction() {
+    const age = document.getElementById('age').value;
+    const genderSelect = document.getElementById('gender');
+    const genderText = genderSelect.options[genderSelect.selectedIndex].text;
+    const interest = document.getElementById('interest').value;
+
+    if (!age || !genderText || !interest) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    try {
+        const response = await fetch('/students/predict-course/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                age: parseInt(age),
+                gender: genderText,
+                interest: interest
+            })
+        });
+
+        const data = await response.json();
+        const predictionResult = document.getElementById('prediction-result');
+        
+        if (response.ok) {
+            predictionResult.style.display = 'block';
+            document.getElementById('predicted-course').textContent = `Recommended Course: ${data.predicted_course}`;
+            document.getElementById('confidence-level').textContent = `Confidence Level: ${(data.confidence * 100).toFixed(2)}%`;
+            predictionResult.className = 'alert alert-success mt-3';
+            document.getElementById('proceedButton').style.display = 'block';
+            
+            // Store the predicted course
+            document.getElementById('finalCourse').value = data.predicted_course;
+        } else {
+            predictionResult.style.display = 'block';
+            document.getElementById('predicted-course').textContent = `Error: ${data.error}`;
+            document.getElementById('confidence-level').textContent = '';
+            predictionResult.className = 'alert alert-danger mt-3';
+            document.getElementById('proceedButton').style.display = 'none';
+        }
+    } catch (error) {
+        const predictionResult = document.getElementById('prediction-result');
+        predictionResult.style.display = 'block';
+        document.getElementById('predicted-course').textContent = `Error making prediction: ${error.message}`;
+        document.getElementById('confidence-level').textContent = '';
+        predictionResult.className = 'alert alert-danger mt-3';
+        document.getElementById('proceedButton').style.display = 'none';
+    }
+}
+
+function proceedToRegistration() {
+    // Store the values from step 1
+    document.getElementById('finalAge').value = document.getElementById('age').value;
+    document.getElementById('finalGender').value = document.getElementById('gender').value;
+    document.getElementById('finalInterest').value = document.getElementById('interest').value;
+    
+    // Switch views
+    document.getElementById('predictionStep').style.display = 'none';
+    document.getElementById('registrationStep').style.display = 'block';
+}
+
+function backToPrediction() {
+    document.getElementById('predictionStep').style.display = 'block';
+    document.getElementById('registrationStep').style.display = 'none';
+}
+</script>
+{% endblock %}
