@@ -77,32 +77,25 @@ def student_delete(request, pk):
 def train_model(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
-        
+
     predictor = CoursePredictor()
-    students = Student.objects.all()
-    
-    if len(students) < 10:  # Ensure we have enough data to train
-        return JsonResponse({'error': 'Not enough student data for training. Need at least 10 students.'}, status=400)
-    
+
     try:
-        ages = [student.age for student in students]
-        genders = [student.get_gender_display() for student in students]
-        interests = [student.interest for student in students]
-        courses = [student.course for student in students]
-        
-        result = predictor.train(ages, genders, interests, courses)
-        
+        result = predictor.train()  # This will use the default dataset path (CSV file)
+
         if result['success']:
             metrics = result['metrics']
             return JsonResponse({
-                'message': 'Model trained successfully',
+                'message': 'Model trained successfully from CSV dataset',
                 'accuracy': f"{metrics['training_accuracy']:.2f}",
                 'cv_score': f"{metrics['cv_mean']:.2f} (+/- {metrics['cv_std']:.2f})"
             })
         else:
             return JsonResponse({'error': result['error']}, status=500)
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
 
 
 @csrf_exempt  # Add this decorator

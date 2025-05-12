@@ -5,6 +5,7 @@ from sklearn.model_selection import cross_val_score
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 import os
+import pandas as pd
 
 class CoursePredictor:
     def __init__(self):
@@ -17,27 +18,38 @@ class CoursePredictor:
         self.model_path = os.path.join(os.path.dirname(__file__), 'course_predictor_model.joblib')
         self.is_trained = False
         self.model_metrics = {}
+        # Default dataset path (relative to project root or absolute path)
+        self.dataset_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'datasets', 'course_data_modified.csv'))
 
-    def preprocess_data(self, ages, genders, interests):
+    def preprocess_data(self, df):
         try:
-            # Validate input data
-            if len(ages) != len(genders) or len(ages) != len(interests):
-                raise ValueError("Input arrays must have the same length")
-            
-            if not all(isinstance(age, (int, float)) for age in ages):
-                raise ValueError("Ages must be numeric values")
-
-            genders_encoded = self.label_encoders['gender'].fit_transform(genders)
-            interests_encoded = self.label_encoders['interest'].fit_transform(interests)
-            return np.array(list(zip(ages, genders_encoded, interests_encoded)))
+            # Encode the categorical variables
+            df = df.copy()
+            df['gender'] = self.label_encoders['gender'].fit_transform(df['gender'])
+            df['interest'] = self.label_encoders['interest'].fit_transform(df['interest'])
+            # Features: age, gender, interest; Target: course
+            X = df[['age', 'gender', 'interest']].values
+            y = self.label_encoders['course'].fit_transform(df['course'])
+            return X, y
         except Exception as e:
             raise ValueError(f"Error preprocessing data: {str(e)}")
 
-    def train(self, ages, genders, interests, courses):
-        """Train the model with student data and perform validation"""
+    def train(self, dataset_path=None):
+        """Train the model on a labeled dataset (CSV file)"""
         try:
-            X = self.preprocess_data(ages, genders, interests)
-            y = self.label_encoders['course'].fit_transform(courses)
+            data_path = dataset_path or self.dataset_path
+            if not os.path.isfile(data_path):
+                return {
+                    'success': False,
+                    'error': f"Dataset CSV file not found: {data_path}"
+                }
+            df = pd.read_csv(data_path)
+            if not {'age', 'gender', 'interest', 'course'}.issubset(df.columns):
+                return {
+                    'success': False,
+                    'error': "Dataset CSV file must contain 'age', 'gender', 'interest', and 'course' columns."
+                }
+            X, y = self.preprocess_data(df)
             
             # Count minimum samples per class
             from collections import Counter
