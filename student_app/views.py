@@ -44,21 +44,52 @@ def student_create(request):
     if request.method == 'POST':
         form = StudentForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Student has been added successfully!")  # Success notification
+            student = form.save(commit=False)
+            # Predict the course using AI
+            predictor = CoursePredictor()
+            if not predictor.load_model():
+                messages.error(request, "AI model is not trained. Please train the model before adding students.")
+                return render(request, 'student_app/student_form.html', {'form': form})
+            prediction = predictor.predict(
+                student.age,
+                dict(Student.GENDER_CHOICES)[student.gender],  # Maps integer to string
+                student.interest
+            )
+            if prediction['success']:
+                student.course = prediction['predicted_course']
+            else:
+                messages.error(request, f"Prediction failed: {prediction.get('error', 'Unknown error')}")
+                return render(request, 'student_app/student_form.html', {'form': form})
+            student.save()
+            messages.success(request, "Student has been added and course predicted successfully!")
             return redirect('student_list')
     else:
         form = StudentForm()
     return render(request, 'student_app/student_form.html', {'form': form})
-
 
 def student_update(request, pk):
     student = get_object_or_404(Student, pk=pk)
     if request.method == 'POST':
         form = StudentForm(request.POST, instance=student)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Student details have been updated successfully!")  # Success notification
+            student = form.save(commit=False)
+            # Predict the course using AI
+            predictor = CoursePredictor()
+            if not predictor.load_model():
+                messages.error(request, "AI model is not trained. Please train the model before updating students.")
+                return render(request, 'student_app/student_form.html', {'form': form})
+            prediction = predictor.predict(
+                student.age,
+                dict(Student.GENDER_CHOICES)[student.gender],
+                student.interest
+            )
+            if prediction['success']:
+                student.course = prediction['predicted_course']
+            else:
+                messages.error(request, f"Prediction failed: {prediction.get('error', 'Unknown error')}")
+                return render(request, 'student_app/student_form.html', {'form': form})
+            student.save()
+            messages.success(request, "Student details have been updated and course predicted successfully!")
             return redirect('student_list')
     else:
         form = StudentForm(instance=student)
